@@ -25,6 +25,9 @@ public inherited sharing class dps_f_FormDefinition {
     public List<FieldBinding> primaryFields { get; private set; }
     public List<FieldBinding> childFields { get; private set; }
 
+    public dps_f_RuleEngine.Scope primaryRules { get; private set; }
+    public dps_f_RuleEngine.Scope childRules { get; private set; }
+
     public String primaryFiles { get; private set; }
     public String childFiles { get; private set; }
 
@@ -46,6 +49,8 @@ public inherited sharing class dps_f_FormDefinition {
         this.childFields = childFields;
         this.primaryFiles = primaryFiles;
         this.childFiles = childFiles;
+        this.primaryRules = new dps_f_RuleEngine.Scope();
+        this.childRules = new dps_f_RuleEngine.Scope();
     }
 
     public static dps_f_FormDefinition resolve(String formKey) {
@@ -53,7 +58,7 @@ public inherited sharing class dps_f_FormDefinition {
             return null;
         }
 
-        return new dps_f_FormDefinition(
+        dps_f_FormDefinition form = new dps_f_FormDefinition(
             'accountContacts',
             Account.SObjectType,
             Contact.SObjectType,
@@ -89,5 +94,25 @@ public inherited sharing class dps_f_FormDefinition {
             System.Label.dps_f_PrimaryFiles,
             System.Label.dps_f_ChildFiles
         );
+        form.configureMailingRules();
+        return form;
+    }
+
+    private void configureMailingRules() {
+        String toggle = 'client.sameAsBilling';
+        childRules.clientFields.add(new dps_f_RuleEngine.ClientField(toggle, System.Label.dps_f_SameAsBilling));
+        dps_f_RuleEngine.Condition enabled = new dps_f_RuleEngine.Condition(toggle, 'equals', true);
+        dps_f_RuleEngine.ValueRule mirror = new dps_f_RuleEngine.ValueRule();
+        mirror.condition = enabled;
+        mirror.actions = new List<dps_f_RuleEngine.Action>();
+        for (String part : new List<String>{'Street', 'City', 'State', 'PostalCode', 'Country'}) {
+            String source = 'primary.billing' + part;
+            String target = 'child.mailing' + part;
+            dps_f_RuleEngine.Policy policy = new dps_f_RuleEngine.Policy();
+            policy.readOnlyWhen = enabled;
+            childRules.policies.put(target, policy);
+            mirror.actions.add(new dps_f_RuleEngine.Action(source, target));
+        }
+        childRules.valueRules.add(mirror);
     }
 }

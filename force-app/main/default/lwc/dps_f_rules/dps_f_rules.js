@@ -27,6 +27,9 @@ const operators = new Map([
 ]);
 
 export function matches(condition, values, evaluators = new Map()) {
+    if (!condition) {
+        return false;
+    }
     if (Array.isArray(condition.conditions)) {
         const evaluate = child => matches(child, values, evaluators);
         return condition.logic === 'OR'
@@ -36,7 +39,7 @@ export function matches(condition, values, evaluators = new Map()) {
     if (condition.method) {
         const evaluate = evaluators.get(condition.method);
         try {
-            return evaluate?.(condition.args ?? {}, values) === true;
+            return evaluate?.(condition.args ?? {}, values, condition.dependsOn ?? []) === true;
         } catch {
             return false;
         }
@@ -44,9 +47,14 @@ export function matches(condition, values, evaluators = new Map()) {
     return operators.get(condition.operator)?.(values[condition.field], condition.value) ?? false;
 }
 
-export function applyValueRules(rules, values, changedField, evaluators) {
+export const formEvaluators = new Map([
+    ['allPopulated', (_args, values, dependencies) =>
+        dependencies.length > 0 && dependencies.every(key => !blank(values[key]))]
+]);
+
+export function applyValueRules(rules, values, changedFields, evaluators) {
     const draft = Object.assign(Object.create(null), values);
-    const changed = new Set([changedField]);
+    const changed = new Set(typeof changedFields === 'string' ? [changedFields] : changedFields);
     const writes = new Map();
 
     function write(field, value) {
@@ -58,10 +66,10 @@ export function applyValueRules(rules, values, changedField, evaluators) {
         changed.add(field);
     }
 
-    for (const { when, actions } of rules) {
+    for (const { condition, when = condition, actions } of rules) {
         const controls = conditionFields(when);
         const triggered = controls.some(field => changed.has(field)) ||
-            actions.some(action => action.type === 'copy' && changed.has(action.from));
+            actions.some(action => action.type === 'copy' && changed.has(action.fromKey ?? action.from));
         if (!triggered || !matches(when, draft, evaluators)) {
             continue;
         }
@@ -70,9 +78,12 @@ export function applyValueRules(rules, values, changedField, evaluators) {
                 for (const field of action.fields) {
                     write(field, null);
                 }
-            } else if (action.type === 'copy' && Object.hasOwn(draft, action.from) &&
-                (action.overwrite || blank(draft[action.to]))) {
-                write(action.to, draft[action.from]);
+            } else if (action.type === 'copy') {
+                const from = action.fromKey ?? action.from;
+                const to = action.toKey ?? action.to;
+                if (Object.hasOwn(draft, from) && (action.overwrite || blank(draft[to]))) {
+                    write(to, draft[from]);
+                }
             }
         }
     }

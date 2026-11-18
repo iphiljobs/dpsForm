@@ -14,11 +14,13 @@
                 <fieldset disabled={busy}>
                     <legend class="slds-text-heading_small">{form.primaryLabel}</legend>
                     <div class={fieldGridClass}>
-                    <template for:each={form.primary.fields} for:item="field">
-                        <c-dps_f_field class={field.layoutClass} key={field.key} field={field} form-key={formKey}
-                            busy={busy} data-field={field.key} onvaluechange={changeField}>
-                        </c-dps_f_field>
-                    </template>
+                        <template for:each={form.primary.fields} for:item="field">
+                            <div key={field.key} class={field.layoutClass} lwc:if={field.visible}>
+                                <c-dps_f_field field={field} form-key={formKey} busy={busy}
+                                    data-field={field.key} onvaluechange={changeField}>
+                                </c-dps_f_field>
+                            </div>
+                        </template>
                     </div>
                     <template lwc:if={form.primaryFiles}>
                         <template lwc:if={form.primary.id}>
@@ -33,12 +35,13 @@
                         <fieldset key={row.rowKey} class="slds-box slds-m-top_small">
                             <legend>{form.childLabel}</legend>
                             <div class={fieldGridClass}>
-                            <template for:each={row.fields} for:item="field">
-                                <c-dps_f_field class={field.layoutClass} key={field.key} field={field} form-key={formKey}
-                                    busy={busy} data-row={row.rowKey} data-field={field.key}
-                                    onvaluechange={changeField}>
-                                </c-dps_f_field>
-                            </template>
+                                <template for:each={row.fields} for:item="field">
+                                    <div key={field.key} class={field.layoutClass} lwc:if={field.visible}>
+                                        <c-dps_f_field field={field} form-key={formKey} busy={busy} data-row={row.rowKey}
+                                            data-field={field.key} onvaluechange={changeField}>
+                                        </c-dps_f_field>
+                                    </div>
+                                </template>
                             </div>
                             <template lwc:if={form.childFiles}>
                                 <template lwc:if={row.id}>

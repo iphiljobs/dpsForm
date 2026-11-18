@@ -52,6 +52,33 @@ private class dps_f_FormControllerTest {
     }
 
     @IsTest
+    static void derivesMailingFromBillingAndRejectsLockedInput() {
+        Account parent = new Account(Name = 'Address rule', BillingCity = 'Oldsmar');
+        insert parent;
+        Contact mirrored = new Contact(LastName = 'Mirror', AccountId = parent.Id, MailingCity = 'Tampa');
+        Contact independent = new Contact(LastName = 'Independent', AccountId = parent.Id, MailingCity = 'Lutz');
+        insert new List<Contact>{mirrored, independent};
+
+        String prefix = '{"primary":{"id":"' + parent.Id +
+            '","values":{"primary.billingCity":"Clearwater"}},"children":[{"id":"' +
+            mirrored.Id + '","clientValues":{"client.sameAsBilling":true},"values":';
+        String suffix = '},{"id":"' + independent.Id + '","values":{}}],"removed":[]}';
+        dps_f_FormController.save('accountContacts', prefix + '{}' + suffix);
+        Map<Id, Contact> saved = new Map<Id, Contact>([
+            SELECT Id, MailingCity FROM Contact WHERE AccountId = :parent.Id
+        ]);
+        System.assertEquals('Clearwater', saved.get(mirrored.Id).MailingCity);
+        System.assertEquals('Lutz', saved.get(independent.Id).MailingCity);
+
+        try {
+            dps_f_FormController.save('accountContacts', prefix + '{"child.mailingCity":"Tampa"}' + suffix);
+            System.assert(false, 'A protected field must reject direct input.');
+        } catch (AuraHandledException expected) {
+            System.assertEquals('Clearwater', [SELECT MailingCity FROM Contact WHERE Id = :mirrored.Id].MailingCity);
+        }
+    }
+
+    @IsTest
     static void rollsBackParentOnInvalidChild() {
         try {
             dps_f_FormController.save(

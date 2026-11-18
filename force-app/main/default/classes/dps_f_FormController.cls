@@ -2,6 +2,7 @@ public with sharing class dps_f_FormController {
     private class Draft {
         public Id id;
         public Map<String, String> values;
+        public Map<String, Boolean> clientValues;
     }
 
     private class Submission {
@@ -39,17 +40,26 @@ public with sharing class dps_f_FormController {
                     throw new IllegalArgumentException();
                 }
             }
+            Map<String, Object> primaryValues = new Map<String, Object>();
+            Set<String> primaryChanges = applyRules(form.primaryRules, draft.primary,
+                form.primaryFields, creating ? null : readPrimary(form, parentId, true),
+                primaryValues, new Set<String>());
+
             String relation = form.childRelationship.getDescribe().getName();
+            Map<Id, SObject> originals = new Map<Id, SObject>();
             if (!submitted.isEmpty()) {
                 if (creating) {
                     throw new IllegalArgumentException();
                 }
                 List<SObject> linked = Database.queryWithBinds(
-                    'SELECT Id FROM ' + form.childObject.getDescribe().getName() +
+                    selectFields(form.childObject, form.childFields) +
                     ' WHERE Id IN :submitted AND ' + relation + ' = :parentId FOR UPDATE',
                     new Map<String, Object>{'parentId' => parentId, 'submitted' => submitted},
                     AccessLevel.USER_MODE
                 );
+                for (SObject child : linked) {
+                    originals.put((Id) child.get('Id'), child);
+                }
                 if (linked.size() != submitted.size()) {
                     throw new IllegalArgumentException();
                 }
@@ -61,14 +71,14 @@ public with sharing class dps_f_FormController {
                 parentId = (Id) primaryRecord.get('Id');
             } else if (!draft.primary.values.isEmpty()) {
                 Database.update(primaryRecord, AccessLevel.USER_MODE);
-            } else {
-                readPrimary(form, parentId);
             }
 
             List<SObject> inserts = new List<SObject>();
             List<SObject> updates = new List<SObject>();
             List<SObject> deletes = new List<SObject>();
             for (Draft row : draft.children) {
+                applyRules(form.childRules, row, form.childFields, originals.get(row.id),
+                    new Map<String, Object>(primaryValues), new Set<String>(primaryChanges));
                 SObject child = mappedRecord(form.childObject, form.childFields, row);
                 if (row.id == null) {
                     child.put(form.childRelationship, parentId);
@@ -104,6 +114,89 @@ public with sharing class dps_f_FormController {
         return form;
     }
 
+    private static Set<String> applyRules(
+        dps_f_RuleEngine.Scope scope, Draft draft,
+        List<dps_f_FormDefinition.FieldBinding> bindings, SObject original,
+        Map<String, Object> values, Set<String> changed
+    ) {
+        Map<String, Schema.DescribeFieldResult> fields = new Map<String, Schema.DescribeFieldResult>();
+        Map<String, String> submitted = draft.values;
+        Set<String> clientKeys = new Set<String>();
+        for (dps_f_RuleEngine.ClientField client : scope.clientFields) {
+            clientKeys.add(client.key);
+            Boolean supplied = draft.clientValues != null && draft.clientValues.containsKey(client.key);
+            values.put(client.key, supplied ? draft.clientValues.get(client.key) : client.value);
+            if (supplied) {
+                changed.add(client.key);
+            }
+        }
+        if (draft.clientValues != null && !clientKeys.containsAll(draft.clientValues.keySet())) {
+            throw new IllegalArgumentException();
+        }
+        for (dps_f_FormDefinition.FieldBinding binding : bindings) {
+            Schema.DescribeFieldResult field = binding.field.getDescribe();
+            if (!field.isAccessible()) {
+                continue;
+            }
+            fields.put(binding.key, field);
+            Object current = original == null ? null : original.get(binding.field);
+            if (submitted.containsKey(binding.key)) {
+                current = convert(submitted.get(binding.key), field.getType());
+                changed.add(binding.key);
+            }
+            values.put(binding.key, dps_f_RuleEngine.conditionValue(current));
+        }
+        if (!fields.keySet().containsAll(submitted.keySet())) {
+            throw new IllegalArgumentException();
+        }
+
+        for (String key : clientKeys) {
+            dps_f_RuleEngine.Policy policy = scope.policies.get(key);
+            if (policy == null) {
+                continue;
+            }
+            Boolean visible = policy.visibleWhen == null ||
+                dps_f_RuleEngine.matches(policy.visibleWhen, values);
+            if ((visible && dps_f_RuleEngine.matches(policy.requiredWhen, values) &&
+                dps_f_RuleEngine.isBlank(values.get(key))) ||
+                (draft.clientValues != null && draft.clientValues.containsKey(key) &&
+                (!visible || dps_f_RuleEngine.matches(policy.readOnlyWhen, values)))) {
+                throw new IllegalArgumentException();
+            }
+        }
+
+        Set<String> derived = dps_f_RuleEngine.apply(scope, values, changed);
+        Map<String, String> approved = new Map<String, String>();
+        for (String key : fields.keySet()) {
+            Schema.DescribeFieldResult field = fields.get(key);
+            Boolean writable = draft.id == null ? field.isCreateable() : field.isUpdateable();
+            dps_f_RuleEngine.Policy policy = scope.policies.get(key);
+            Boolean visible = policy == null || policy.visibleWhen == null ||
+                dps_f_RuleEngine.matches(policy.visibleWhen, values);
+            Boolean locked = policy != null && dps_f_RuleEngine.matches(policy.readOnlyWhen, values);
+            Boolean required = policy != null && dps_f_RuleEngine.matches(policy.requiredWhen, values);
+            if (visible && required && (writable || locked) && dps_f_RuleEngine.isBlank(values.get(key))) {
+                throw new IllegalArgumentException();
+            }
+            if (submitted.containsKey(key) && (!writable || locked || !visible)) {
+                throw new IllegalArgumentException();
+            }
+            if (derived.contains(key) || (writable && !visible && scope.clearWhenHidden == true)) {
+                if (!writable) {
+                    throw new IllegalArgumentException();
+                }
+                Object value = !visible && scope.clearWhenHidden == true ? null : values.get(key);
+                approved.put(key, value == null ? null : String.valueOf(value));
+                values.put(key, value);
+                changed.add(key);
+            } else if (submitted.containsKey(key)) {
+                approved.put(key, submitted.get(key));
+            }
+        }
+        draft.values = approved;
+        return changed;
+    }
+
     private static SObject mappedRecord(
         Schema.SObjectType objectType,
         List<dps_f_FormDefinition.FieldBinding> fields,
@@ -125,7 +218,7 @@ public with sharing class dps_f_FormController {
     }
 
     private static Map<String, Object> readForm(dps_f_FormDefinition form, Id recordId) {
-        SObject primaryRecord = recordId == null ? null : readPrimary(form, recordId);
+        SObject primaryRecord = recordId == null ? null : readPrimary(form, recordId, false);
         List<Object> children = new List<Object>();
         if (recordId != null) {
             String relation = form.childRelationship.getDescribe().getName();
@@ -148,16 +241,18 @@ public with sharing class dps_f_FormController {
             'childrenLabel' => form.childObject.getDescribe().getLabelPlural(),
             'childTemplate' => present(null, form.childFields),
             'children' => children,
-            'primaryFiles' => form.primaryFiles, 'childFiles' => form.childFiles
+            'primaryFiles' => form.primaryFiles, 'childFiles' => form.childFiles,
+            'primaryRules' => form.primaryRules, 'childRules' => form.childRules
         };
     }
 
-    private static SObject readPrimary(dps_f_FormDefinition form, Id recordId) {
+    private static SObject readPrimary(dps_f_FormDefinition form, Id recordId, Boolean lockRecord) {
         if (recordId.getSObjectType() != form.primaryObject) {
             throw new IllegalArgumentException();
         }
         return Database.queryWithBinds(
-            selectFields(form.primaryObject, form.primaryFields) + ' WHERE Id = :recordId',
+            selectFields(form.primaryObject, form.primaryFields) + ' WHERE Id = :recordId' +
+                (lockRecord ? ' FOR UPDATE' : ''),
             new Map<String, Object>{'recordId' => recordId},
             AccessLevel.USER_MODE
         )[0];

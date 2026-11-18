@@ -17,7 +17,8 @@ export default class DpsFField extends LightningElement {
         }
     }
 
-    get disabled() { return this.busy || this.field.disabled; }
+    get disabled() { return this.busy || (this.field.isDisabled ?? this.field.disabled); }
+    get required() { return this.field.isRequired ?? this.field.required; }
     get isLookup() { return this.field.kind === 'lookup'; }
     get isCheckbox() { return this.field.kind === 'checkbox'; }
     get isTextarea() { return this.field.kind === 'textarea'; }
@@ -27,10 +28,10 @@ export default class DpsFField extends LightningElement {
         return this.field.value == null ? undefined : String(this.field.value);
     }
     get lookupOptions() {
-        return this.field.required ? this.options : [{ label: 'None', value: '' }, ...this.options];
+        return this.required ? this.options : [{ label: 'None', value: '' }, ...this.options];
     }
     get picklistOptions() {
-        return this.field.required ? this.field.options : [{ label: 'None', value: '' }, ...this.field.options];
+        return this.required ? this.field.options : [{ label: 'None', value: '' }, ...this.field.options];
     }
 
     change(event) {

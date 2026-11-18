@@ -32,4 +32,12 @@
         <shortDescription>Upload contact files</shortDescription>
         <value>Upload contact files</value>
     </labels>
+    <labels>
+        <fullName>dps_f_SameAsBilling</fullName>
+        <categories>DPS Form</categories>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Copy the billing address</shortDescription>
+        <value>Mailing same as Billing</value>
+    </labels>
 </CustomLabels>
