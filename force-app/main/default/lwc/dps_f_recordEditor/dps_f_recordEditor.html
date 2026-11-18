@@ -1,0 +1,57 @@
+<template>
+    <lightning-card>
+        <div class="slds-p-around_medium">
+            <template lwc:if={busy}>
+                <lightning-spinner alternative-text="Working" size="small"></lightning-spinner>
+            </template>
+            <template lwc:if={error}>
+                <p role="alert" class="slds-text-color_error slds-m-bottom_small">{error}</p>
+            </template>
+            <template lwc:if={notice}>
+                <p role="status" class="slds-m-bottom_small">{notice}</p>
+            </template>
+            <template lwc:if={form}>
+                <fieldset disabled={busy}>
+                    <legend class="slds-text-heading_small">{form.primaryLabel}</legend>
+                    <template for:each={form.primary.fields} for:item="field">
+                        <lightning-input key={field.key} label={field.label} value={field.value}
+                            type={field.kind} required={field.required} disabled={field.disabled}
+                            data-field={field.key} onchange={changeField}>
+                        </lightning-input>
+                    </template>
+
+                    <h2 class="slds-text-heading_small slds-m-top_medium">{form.childrenLabel}</h2>
+                    <template for:each={activeRows} for:item="row">
+                        <fieldset key={row.rowKey} class="slds-box slds-m-top_small">
+                            <legend>{form.childLabel}</legend>
+                            <template for:each={row.fields} for:item="field">
+                                <lightning-input key={field.key} label={field.label} value={field.value}
+                                    type={field.kind} required={field.required} disabled={field.disabled}
+                                    data-row={row.rowKey} data-field={field.key} onchange={changeField}>
+                                </lightning-input>
+                            </template>
+                            <lightning-button label="Remove" disabled={busy} data-row={row.rowKey}
+                                onclick={removeRow} class="slds-m-top_small">
+                            </lightning-button>
+                        </fieldset>
+                    </template>
+                    <template for:each={removedRows} for:item="row">
+                        <div key={row.rowKey} class="slds-m-top_small">
+                            <span>Row marked for deletion. </span>
+                            <lightning-button label="Undo" disabled={busy} data-row={row.rowKey}
+                                onclick={undoRemove}>
+                            </lightning-button>
+                        </div>
+                    </template>
+                    <div class="slds-m-top_medium">
+                        <lightning-button label="Add row" disabled={disableAdd} onclick={addRow}>
+                        </lightning-button>
+                        <lightning-button variant="brand" label="Save draft" disabled={busy}
+                            onclick={saveForm} class="slds-m-left_small">
+                        </lightning-button>
+                    </div>
+                </fieldset>
+            </template>
+        </div>
+    </lightning-card>
+</template>
