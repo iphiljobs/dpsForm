@@ -32,6 +32,11 @@ export default class DpsFRecordEditor extends LightningElement {
 
     setForm(result) {
         this.form = JSON.parse(result);
+        for (const row of [this.form.primary, this.form.childTemplate, ...this.form.children]) {
+            for (const field of row.fields) {
+                field.layoutClass = field.addressGroup && !field.wide ? 'field address-part' : 'field';
+            }
+        }
         this.rows = this.form.children.map(row => ({ ...row, rowKey: row.id }));
         this.removed = [];
     }
@@ -71,7 +76,7 @@ export default class DpsFRecordEditor extends LightningElement {
 
     changeField(event) {
         const { row, field } = event.currentTarget.dataset;
-        const { value } = event.target;
+        const value = event.detail;
         const update = item => ({
             ...item,
             fields: item.fields.map(input => input.key === field
@@ -85,11 +90,16 @@ export default class DpsFRecordEditor extends LightningElement {
         }
     }
 
+    handleUpload(event) {
+        const count = event.detail.files.length;
+        this.notice = count === 1 ? 'File uploaded.' : `${count} files uploaded.`;
+    }
+
     async saveForm() {
         if (this.busy) {
             return;
         }
-        const validity = [...this.template.querySelectorAll('lightning-input')]
+        const validity = [...this.template.querySelectorAll('c-dps_f_field')]
             .map(input => input.reportValidity());
         if (validity.includes(false)) {
             return;
@@ -100,7 +110,7 @@ export default class DpsFRecordEditor extends LightningElement {
         const serialize = row => ({
             id: row.id || null,
             values: Object.fromEntries(row.fields.filter(field => field.changed)
-                .map(field => [field.key, field.value === '' ? null : field.value]))
+                .map(field => [field.key, field.value === '' || field.value == null ? null : String(field.value)]))
         });
         try {
             const payload = JSON.stringify({

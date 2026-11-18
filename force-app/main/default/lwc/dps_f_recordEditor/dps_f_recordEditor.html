@@ -13,22 +13,39 @@
             <template lwc:if={form}>
                 <fieldset disabled={busy}>
                     <legend class="slds-text-heading_small">{form.primaryLabel}</legend>
+                    <div class="field-grid">
                     <template for:each={form.primary.fields} for:item="field">
-                        <lightning-input key={field.key} label={field.label} value={field.value}
-                            type={field.kind} required={field.required} disabled={field.disabled}
-                            data-field={field.key} onchange={changeField}>
-                        </lightning-input>
+                        <c-dps_f_field class={field.layoutClass} key={field.key} field={field} form-key={formKey}
+                            busy={busy} data-field={field.key} onvaluechange={changeField}>
+                        </c-dps_f_field>
+                    </template>
+                    </div>
+                    <template lwc:if={form.primaryFiles}>
+                        <template lwc:if={form.primary.id}>
+                            <lightning-file-upload label={form.primaryFiles} record-id={form.primary.id}
+                                multiple disabled={busy} onuploadfinished={handleUpload}>
+                            </lightning-file-upload>
+                        </template>
                     </template>
 
                     <h2 class="slds-text-heading_small slds-m-top_medium">{form.childrenLabel}</h2>
                     <template for:each={activeRows} for:item="row">
                         <fieldset key={row.rowKey} class="slds-box slds-m-top_small">
                             <legend>{form.childLabel}</legend>
+                            <div class="field-grid">
                             <template for:each={row.fields} for:item="field">
-                                <lightning-input key={field.key} label={field.label} value={field.value}
-                                    type={field.kind} required={field.required} disabled={field.disabled}
-                                    data-row={row.rowKey} data-field={field.key} onchange={changeField}>
-                                </lightning-input>
+                                <c-dps_f_field class={field.layoutClass} key={field.key} field={field} form-key={formKey}
+                                    busy={busy} data-row={row.rowKey} data-field={field.key}
+                                    onvaluechange={changeField}>
+                                </c-dps_f_field>
+                            </template>
+                            </div>
+                            <template lwc:if={form.childFiles}>
+                                <template lwc:if={row.id}>
+                                    <lightning-file-upload label={form.childFiles} record-id={row.id}
+                                        multiple disabled={busy} onuploadfinished={handleUpload}>
+                                    </lightning-file-upload>
+                                </template>
                             </template>
                             <lightning-button label="Remove" disabled={busy} data-row={row.rowKey}
                                 onclick={removeRow} class="slds-m-top_small">

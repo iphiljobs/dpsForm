@@ -31,6 +31,27 @@ private class dps_f_FormControllerTest {
     }
 
     @IsTest
+    static void savesTypedValues() {
+        String result = dps_f_FormController.save(
+            'accountContacts',
+            '{"primary":{"values":{"primary.name":"Types","primary.employees":"17"}},' +
+            '"children":[{"values":{"child.lastName":"Types","child.birthDate":"2000-02-29",' +
+            '"child.emailOptOut":"false","child.faxOptOut":"true"}}],"removed":[]}'
+        );
+        Account record = [SELECT NumberOfEmployees FROM Account WHERE Name = 'Types'];
+        Contact child = [
+            SELECT Birthdate, HasOptedOutOfEmail, HasOptedOutOfFax FROM Contact
+            WHERE AccountId = :record.Id
+        ];
+        System.assertEquals(17, record.NumberOfEmployees);
+        System.assertEquals(Date.newInstance(2000, 2, 29), child.Birthdate);
+        System.assertEquals(false, child.HasOptedOutOfEmail);
+        System.assertEquals(true, child.HasOptedOutOfFax);
+        System.assert(result.contains('booleanRadio'));
+        System.assert(result.contains('primaryFiles'));
+    }
+
+    @IsTest
     static void rollsBackParentOnInvalidChild() {
         try {
             dps_f_FormController.save(

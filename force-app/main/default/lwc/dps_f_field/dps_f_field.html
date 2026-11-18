@@ -1,0 +1,37 @@
+<template>
+    <template lwc:if={isLookup}>
+        <lightning-input type="search" label={field.label} placeholder="Search using at least two characters"
+            disabled={disabled} value={term} onchange={search}>
+        </lightning-input>
+        <lightning-combobox data-control label={field.label} variant="label-hidden"
+            value={field.value} options={lookupOptions} disabled={disabled}
+            required={field.required} onchange={change}>
+        </lightning-combobox>
+        <template lwc:if={lookupError}><p role="alert">{lookupError}</p></template>
+    </template>
+    <template lwc:elseif={isCheckbox}>
+        <lightning-input data-control type="checkbox" label={field.label}
+            checked={field.value} disabled={disabled} onchange={change}>
+        </lightning-input>
+    </template>
+    <template lwc:elseif={isRadio}>
+        <lightning-radio-group data-control label={field.label} options={field.options}
+            value={radioValue} required={field.required} disabled={disabled} onchange={change}>
+        </lightning-radio-group>
+    </template>
+    <template lwc:elseif={isPicklist}>
+        <lightning-combobox data-control label={field.label} options={picklistOptions}
+            value={field.value} required={field.required} disabled={disabled} onchange={change}>
+        </lightning-combobox>
+    </template>
+    <template lwc:elseif={isTextarea}>
+        <lightning-textarea data-control label={field.label} value={field.value}
+            required={field.required} disabled={disabled} onchange={change}>
+        </lightning-textarea>
+    </template>
+    <template lwc:else>
+        <lightning-input data-control type={field.kind} label={field.label} value={field.value}
+            step={field.step} required={field.required} disabled={disabled} onchange={change}>
+        </lightning-input>
+    </template>
+</template>

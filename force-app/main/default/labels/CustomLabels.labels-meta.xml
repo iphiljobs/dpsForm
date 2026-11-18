@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels>
+        <fullName>dps_f_Yes</fullName>
+        <categories>DPS Form</categories>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Yes</shortDescription>
+        <value>Yes</value>
+    </labels>
+    <labels>
+        <fullName>dps_f_No</fullName>
+        <categories>DPS Form</categories>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>No</shortDescription>
+        <value>No</value>
+    </labels>
+    <labels>
+        <fullName>dps_f_PrimaryFiles</fullName>
+        <categories>DPS Form</categories>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Upload account files</shortDescription>
+        <value>Upload account files</value>
+    </labels>
+    <labels>
+        <fullName>dps_f_ChildFiles</fullName>
+        <categories>DPS Form</categories>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Upload contact files</shortDescription>
+        <value>Upload contact files</value>
+    </labels>
+</CustomLabels>

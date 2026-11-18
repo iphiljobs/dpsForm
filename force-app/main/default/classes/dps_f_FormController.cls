@@ -118,7 +118,8 @@ public with sharing class dps_f_FormController {
             if (!allowed.containsKey(key)) {
                 throw new IllegalArgumentException();
             }
-            record.put(allowed.get(key), draft.values.get(key));
+            Schema.SObjectField binding = allowed.get(key);
+            record.put(binding, convert(draft.values.get(key), binding.getDescribe().getType()));
         }
         return record;
     }
@@ -146,7 +147,8 @@ public with sharing class dps_f_FormController {
             'childLabel' => form.childObject.getDescribe().getLabel(),
             'childrenLabel' => form.childObject.getDescribe().getLabelPlural(),
             'childTemplate' => present(null, form.childFields),
-            'children' => children
+            'children' => children,
+            'primaryFiles' => form.primaryFiles, 'childFiles' => form.childFiles
         };
     }
 
@@ -184,21 +186,134 @@ public with sharing class dps_f_FormController {
                 continue;
             }
             Boolean editable = record == null ? field.isCreateable() : field.isUpdateable();
-            String kind = 'text';
-            if (field.getType() == Schema.DisplayType.Email) {
-                kind = 'email';
-            } else if (field.getType() == Schema.DisplayType.Phone) {
-                kind = 'tel';
+            String kind = fieldKind(binding, field);
+            List<Object> options = new List<Object>();
+            Object current = record == null ? null : record.get(binding.field);
+            if (kind == 'picklist' || kind == 'radio') {
+                for (Schema.PicklistEntry option : field.getPicklistValues()) {
+                    if (option.isActive() || option.getValue() == (String) current) {
+                        options.add(new Map<String, String>{
+                            'label' => option.getLabel(), 'value' => option.getValue()
+                        });
+                    }
+                }
+            }
+            if (kind == 'booleanRadio') {
+                options.add(new Map<String, String>{'label' => System.Label.dps_f_Yes, 'value' => 'true'});
+                options.add(new Map<String, String>{'label' => System.Label.dps_f_No, 'value' => 'false'});
             }
             controls.add(new Map<String, Object>{
                 'key' => binding.key, 'label' => field.getLabel(), 'kind' => kind,
                 'disabled' => !editable,
                 'required' => editable && !field.isNillable() && !field.isDefaultedOnCreate(),
-                'value' => record == null ? null : record.get(binding.field)
+                'value' => current, 'options' => options,
+                'addressGroup' => binding.addressGroup,
+                'wide' => kind == 'textarea',
+                'step' => kind == 'number' ? numericStep(field.getScale()) : null
             });
         }
         return new Map<String, Object>{
             'id' => record == null ? null : record.get('Id'), 'fields' => controls
         };
+    }
+
+    private static String numericStep(Integer scale) {
+        if (scale <= 0) {
+            return '1';
+        }
+        String step = '0.';
+        for (Integer position = 1; position < scale; position++) {
+            step += '0';
+        }
+        return step + '1';
+    }
+
+    private static String fieldKind(
+        dps_f_FormDefinition.FieldBinding binding, Schema.DescribeFieldResult field
+    ) {
+        if (binding.presentation != null) {
+            return binding.presentation;
+        }
+        switch on field.getType() {
+            when Email { return 'email'; }
+            when Phone { return 'tel'; }
+            when Url { return 'url'; }
+            when Boolean { return 'checkbox'; }
+            when Integer, Double, Currency, Percent { return 'number'; }
+            when Date { return 'date'; }
+            when DateTime { return 'datetime'; }
+            when Time { return 'time'; }
+            when Picklist { return 'picklist'; }
+            when TextArea { return 'textarea'; }
+            when else { return 'text'; }
+        }
+    }
+
+    private static Object convert(String value, Schema.DisplayType type) {
+        if (value == null) {
+            return null;
+        }
+        switch on type {
+            when Boolean {
+                if (value != 'true' && value != 'false') {
+                    throw new IllegalArgumentException();
+                }
+                return value == 'true';
+            }
+            when Integer { return Integer.valueOf(value); }
+            when Double, Currency, Percent { return Decimal.valueOf(value); }
+            when Date { return Date.valueOf(value); }
+            when DateTime { return JSON.deserialize(JSON.serialize(value), Datetime.class); }
+            when Time {
+                String clean = value.endsWith('Z') ? value.substring(0, value.length() - 1) : value;
+                List<String> parts = clean.split(':');
+                Decimal seconds = parts.size() > 2 ? Decimal.valueOf(parts[2]) : 0;
+                Integer wholeSeconds = seconds.intValue();
+                return Time.newInstance(Integer.valueOf(parts[0]), Integer.valueOf(parts[1]),
+                    wholeSeconds, ((seconds - wholeSeconds) * 1000).intValue());
+            }
+            when Reference { return Id.valueOf(value); }
+            when else { return value; }
+        }
+    }
+
+    @AuraEnabled
+    public static String lookup(String formKey, String fieldKey, String term, Id selectedId) {
+        try {
+            dps_f_FormDefinition form = definition(formKey);
+            List<dps_f_FormDefinition.FieldBinding> fields =
+                fieldKey != null && fieldKey.startsWith('primary.') ? form.primaryFields : form.childFields;
+            for (dps_f_FormDefinition.FieldBinding binding : fields) {
+                Schema.DescribeFieldResult field = binding.field.getDescribe();
+                if (binding.key != fieldKey || binding.presentation != 'lookup' || !field.isAccessible()) {
+                    continue;
+                }
+                List<Schema.SObjectType> targets = field.getReferenceTo();
+                if (targets.size() != 1) {
+                    break;
+                }
+                String objectName = targets[0].getDescribe().getName();
+                String searchText = term == null ? '' : term.trim();
+                if (selectedId == null && (searchText.length() < 2 || searchText.length() > 80)) {
+                    return '[]';
+                }
+                Map<String, Object> binds = new Map<String, Object>{
+                    'selectedId' => selectedId,
+                    'searchText' => '%' + searchText.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
+                };
+                String condition = selectedId == null ? 'Name LIKE :searchText' : 'Id = :selectedId';
+                List<Object> options = new List<Object>();
+                for (SObject row : Database.queryWithBinds(
+                    'SELECT Id, Name FROM ' + objectName + ' WHERE ' + condition + ' ORDER BY Name, Id LIMIT 20',
+                    binds, AccessLevel.USER_MODE
+                )) {
+                    options.add(new Map<String, Object>{'value' => row.get('Id'), 'label' => row.get('Name')});
+                }
+                return JSON.serialize(options);
+            }
+            throw new IllegalArgumentException();
+        } catch (Exception error) {
+            throw new AuraHandledException('Unable to find records for this field.');
+        }
     }
 }
