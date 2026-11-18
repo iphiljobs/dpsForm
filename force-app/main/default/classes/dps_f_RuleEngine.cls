@@ -68,13 +68,13 @@ public inherited sharing class dps_f_RuleEngine {
             return false;
         }
         if (condition.conditions != null) {
-            Boolean any = condition.logic == 'OR';
+            Boolean isOrGroup = condition.logic == 'OR';
             for (Condition child : condition.conditions) {
-                if (matches(child, values) == any) {
-                    return any;
+                if (matches(child, values) == isOrGroup) {
+                    return isOrGroup;
                 }
             }
-            return !any;
+            return !isOrGroup;
         }
         if (condition.method != null) {
             return evaluateNamed(condition, values);
