@@ -5,6 +5,7 @@ import save from '@salesforce/apex/dps_f_FormController.save';
 export default class DpsFRecordEditor extends LightningElement {
     @api formKey = 'accountContacts';
     @api recordId;
+    @api columns = '1';
 
     form;
     rows = [];
@@ -34,11 +35,16 @@ export default class DpsFRecordEditor extends LightningElement {
         this.form = JSON.parse(result);
         for (const row of [this.form.primary, this.form.childTemplate, ...this.form.children]) {
             for (const field of row.fields) {
-                field.layoutClass = field.addressGroup && !field.wide ? 'field address-part' : 'field';
+                field.layoutClass = field.wide ? 'field field-wide'
+                    : field.addressGroup ? 'field address-part' : 'field';
             }
         }
         this.rows = this.form.children.map(row => ({ ...row, rowKey: row.id }));
         this.removed = [];
+    }
+
+    get fieldGridClass() {
+        return String(this.columns) === '2' ? 'field-grid two-columns' : 'field-grid';
     }
 
     get activeRows() {

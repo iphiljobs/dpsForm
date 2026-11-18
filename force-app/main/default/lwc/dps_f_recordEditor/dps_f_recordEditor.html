@@ -13,7 +13,7 @@
             <template lwc:if={form}>
                 <fieldset disabled={busy}>
                     <legend class="slds-text-heading_small">{form.primaryLabel}</legend>
-                    <div class="field-grid">
+                    <div class={fieldGridClass}>
                     <template for:each={form.primary.fields} for:item="field">
                         <c-dps_f_field class={field.layoutClass} key={field.key} field={field} form-key={formKey}
                             busy={busy} data-field={field.key} onvaluechange={changeField}>
@@ -32,7 +32,7 @@
                     <template for:each={activeRows} for:item="row">
                         <fieldset key={row.rowKey} class="slds-box slds-m-top_small">
                             <legend>{form.childLabel}</legend>
-                            <div class="field-grid">
+                            <div class={fieldGridClass}>
                             <template for:each={row.fields} for:item="field">
                                 <c-dps_f_field class={field.layoutClass} key={field.key} field={field} form-key={formKey}
                                     busy={busy} data-row={row.rowKey} data-field={field.key}

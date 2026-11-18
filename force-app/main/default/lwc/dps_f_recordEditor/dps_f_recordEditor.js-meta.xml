@@ -12,9 +12,11 @@
     <targetConfigs>
         <targetConfig targets="lightning__RecordPage,lightning__AppPage">
             <property name="formKey" type="String" label="Form key" default="accountContacts"/>
+            <property name="columns" type="String" label="Field columns" default="1" datasource="1,2"/>
         </targetConfig>
         <targetConfig targets="lightningCommunity__Default">
             <property name="formKey" type="String" label="Form key" default="accountContacts"/>
+            <property name="columns" type="String" label="Field columns" default="1" datasource="1,2"/>
             <property name="recordId" type="String" label="Record ID"/>
         </targetConfig>
     </targetConfigs>
